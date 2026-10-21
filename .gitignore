@@ -1,0 +1,10 @@
+# Binaries
+*.exe
+bin/
+
+# Environment
+.env
+
+# Markdown files
+*.md
+!README.md

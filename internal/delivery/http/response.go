@@ -1,11 +1,11 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/apiwat-tb/go-webhook/internal/domain"
+	"github.com/gofiber/fiber/v2"
 )
 
 // errorResponse standardizes the JSON structure for HTTP error payloads.
@@ -13,15 +13,13 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-// writeJSON sets the Content-Type header, HTTP status code, and serializes the value to JSON.
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+// writeJSON sets the HTTP status code and serializes the value to JSON.
+func writeJSON(c *fiber.Ctx, status int, v any) error {
+	return c.Status(status).JSON(v)
 }
 
 // writeError maps known application/domain errors to proper HTTP status codes.
-func writeError(w http.ResponseWriter, err error) {
+func writeError(c *fiber.Ctx, err error) error {
 	var status int
 	var msg string
 
@@ -37,5 +35,5 @@ func writeError(w http.ResponseWriter, err error) {
 		msg = "internal server error"
 	}
 
-	writeJSON(w, status, errorResponse{Error: msg})
+	return writeJSON(c, status, errorResponse{Error: msg})
 }

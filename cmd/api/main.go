@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 
 	deliveryhttp "github.com/apiwat-tb/go-webhook/internal/delivery/http"
@@ -36,7 +35,7 @@ func main() {
 
 	addr := ":" + port
 	log.Printf("Server listening on http://localhost%s", addr)
-	if err := http.ListenAndServe(addr, router); err != nil {
+	if err := router.Listen(addr); err != nil {
 		log.Fatalf("Server stopped unexpectedly: %v", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/apiwat-tb/go-webhook/internal/domain"
 	"github.com/apiwat-tb/go-webhook/internal/usecase"
+	"github.com/gofiber/fiber/v2"
 )
 
 // WebhookHandler handles HTTP endpoints for webhook CRUD and delivery logs.
@@ -30,28 +31,25 @@ type createWebhookRequest struct {
 }
 
 // Create handles POST /webhooks.
-func (h *WebhookHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *WebhookHandler) Create(c *fiber.Ctx) error {
 	var req createWebhookRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, fmt.Errorf("%w: malformed JSON body", domain.ErrInvalidInput))
-		return
+	if err := json.Unmarshal(c.Body(), &req); err != nil {
+		return writeError(c, fmt.Errorf("%w: malformed JSON body", domain.ErrInvalidInput))
 	}
 
 	created, err := h.webhookUsecase.Create(req.URL, req.Event, req.Secret)
 	if err != nil {
-		writeError(w, err)
-		return
+		return writeError(c, err)
 	}
 
-	writeJSON(w, http.StatusCreated, created)
+	return writeJSON(c, http.StatusCreated, created)
 }
 
 // List handles GET /webhooks.
-func (h *WebhookHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *WebhookHandler) List(c *fiber.Ctx) error {
 	webhooks, err := h.webhookUsecase.List()
 	if err != nil {
-		writeError(w, err)
-		return
+		return writeError(c, err)
 	}
 
 	// Always return an empty JSON array instead of null when no webhooks exist.
@@ -59,19 +57,17 @@ func (h *WebhookHandler) List(w http.ResponseWriter, r *http.Request) {
 		webhooks = []*domain.Webhook{}
 	}
 
-	writeJSON(w, http.StatusOK, webhooks)
+	return writeJSON(c, http.StatusOK, webhooks)
 }
 
-// Get handles GET /webhooks/{id}.
-func (h *WebhookHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	webhook, err := h.webhookUsecase.Get(id)
+// Get handles GET /webhooks/:id.
+func (h *WebhookHandler) Get(c *fiber.Ctx) error {
+	webhook, err := h.webhookUsecase.Get(c.Params("id"))
 	if err != nil {
-		writeError(w, err)
-		return
+		return writeError(c, err)
 	}
 
-	writeJSON(w, http.StatusOK, webhook)
+	return writeJSON(c, http.StatusOK, webhook)
 }
 
 type updateWebhookRequest struct {
@@ -80,45 +76,37 @@ type updateWebhookRequest struct {
 	Active *bool   `json:"active"`
 }
 
-// Update handles PUT /webhooks/{id}.
-func (h *WebhookHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+// Update handles PUT /webhooks/:id.
+func (h *WebhookHandler) Update(c *fiber.Ctx) error {
+	id := c.Params("id")
 
 	var req updateWebhookRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, fmt.Errorf("%w: malformed JSON body", domain.ErrInvalidInput))
-		return
+	if err := json.Unmarshal(c.Body(), &req); err != nil {
+		return writeError(c, fmt.Errorf("%w: malformed JSON body", domain.ErrInvalidInput))
 	}
 
 	updated, err := h.webhookUsecase.Update(id, req.URL, req.Event, req.Active)
 	if err != nil {
-		writeError(w, err)
-		return
+		return writeError(c, err)
 	}
 
-	writeJSON(w, http.StatusOK, updated)
+	return writeJSON(c, http.StatusOK, updated)
 }
 
-// Delete handles DELETE /webhooks/{id}.
-func (h *WebhookHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	if err := h.webhookUsecase.Delete(id); err != nil {
-		writeError(w, err)
-		return
+// Delete handles DELETE /webhooks/:id.
+func (h *WebhookHandler) Delete(c *fiber.Ctx) error {
+	if err := h.webhookUsecase.Delete(c.Params("id")); err != nil {
+		return writeError(c, err)
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	return c.SendStatus(http.StatusNoContent)
 }
 
-// ListDeliveries handles GET /webhooks/{id}/deliveries.
-func (h *WebhookHandler) ListDeliveries(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	deliveries, err := h.dispatchUsecase.ListDeliveries(id)
+// ListDeliveries handles GET /webhooks/:id/deliveries.
+func (h *WebhookHandler) ListDeliveries(c *fiber.Ctx) error {
+	deliveries, err := h.dispatchUsecase.ListDeliveries(c.Params("id"))
 	if err != nil {
-		writeError(w, err)
-		return
+		return writeError(c, err)
 	}
 
 	// Ensure empty array serialization instead of null.
@@ -126,5 +114,5 @@ func (h *WebhookHandler) ListDeliveries(w http.ResponseWriter, r *http.Request) 
 		deliveries = []*domain.Delivery{}
 	}
 
-	writeJSON(w, http.StatusOK, deliveries)
+	return writeJSON(c, http.StatusOK, deliveries)
 }

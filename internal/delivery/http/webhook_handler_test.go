@@ -3,6 +3,7 @@ package http_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,6 +15,27 @@ import (
 	"github.com/apiwat-tb/go-webhook/internal/usecase"
 )
 
+// fiberHandler adapts a Fiber app to http.Handler for use with httptest.
+type fiberHandler struct{ app interface {
+	Test(req *http.Request, msTimeout ...int) (*http.Response, error)
+} }
+
+func (f fiberHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	resp, err := f.app.Test(r, -1)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+	for k, v := range resp.Header {
+		for _, vv := range v {
+			w.Header().Add(k, vv)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
 func setupTestRouter() http.Handler {
 	webhookRepo := memory.NewWebhookRepo()
 	deliveryRepo := memory.NewDeliveryRepo()
@@ -22,7 +44,7 @@ func setupTestRouter() http.Handler {
 	webhookUc := usecase.NewWebhookUsecase(webhookRepo)
 	dispatchUc := usecase.NewDispatchUsecase(webhookRepo, deliveryRepo, httpSender)
 
-	return deliveryhttp.NewRouter(webhookUc, dispatchUc, sender.Verify, "test-secret")
+	return fiberHandler{app: deliveryhttp.NewRouter(webhookUc, dispatchUc, sender.Verify, "test-secret")}
 }
 
 func TestWebhookHandler_CreateAndList(t *testing.T) {
