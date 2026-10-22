@@ -49,29 +49,37 @@ go vet ./...
 - `POST /incoming`: Verify and ingest incoming webhooks (checks `X-Signature`).
 - `GET /webhooks/{id}/deliveries`: View delivery history for a webhook (newest first).
 
-## Curl Examples
+## Request Examples (Windows PowerShell)
+
+> `curl.exe` mangles inline JSON quotes in PowerShell, so these use `Invoke-RestMethod`.
 
 ### Create a Webhook
-```bash
-curl -X POST localhost:8080/webhooks -d '{"url":"http://localhost:8080/incoming","event":"order.paid","secret":"demo-secret"}'
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/webhooks -ContentType 'application/json' -Body '{"url":"http://localhost:8080/incoming","event":"order.paid","secret":"demo-secret"}'
 ```
 
 ### List Webhooks
-```bash
-curl localhost:8080/webhooks
+```powershell
+Invoke-RestMethod http://localhost:8080/webhooks
 ```
 
 ### Trigger Event
-```bash
-curl -X POST localhost:8080/events -d '{"event":"order.paid","data":{"order_id":1}}'
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/events -ContentType 'application/json' -Body '{"event":"order.paid","data":{"order_id":1}}'
 ```
 
 ### View Delivery Logs
-```bash
-curl localhost:8080/webhooks/<id>/deliveries
+```powershell
+Invoke-RestMethod http://localhost:8080/webhooks/<id>/deliveries
 ```
 
 ### Delete Webhook
+```powershell
+Invoke-RestMethod -Method Delete -Uri http://localhost:8080/webhooks/<id>
+```
+
+### Bash / curl equivalents
 ```bash
-curl -X DELETE localhost:8080/webhooks/<id>
+curl -X POST localhost:8080/webhooks -d '{"url":"http://localhost:8080/incoming","event":"order.paid","secret":"demo-secret"}'
+curl localhost:8080/webhooks
 ```

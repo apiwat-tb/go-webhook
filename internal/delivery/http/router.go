@@ -3,7 +3,6 @@ package http
 import (
 	"github.com/apiwat-tb/go-webhook/internal/usecase"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/basicauth"
 )
 
 // NewRouter sets up Fiber routing.
@@ -14,12 +13,12 @@ func NewRouter(
 	incomingSecret string,
 ) *fiber.App {
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Use(basicauth.New(basicauth.Config{
-		Users: map[string]string{
-			"john":  "doe",
-			"admin": "123456",
-		},
-	}))
+	// app.Use(basicauth.New(basicauth.Config{
+	// 	Users: map[string]string{
+	// 		"john":  "doe",
+	// 		"admin": "123456",
+	// 	},
+	// }))
 
 	api := app.Group("/api")
 	v1 := api.Group("/v1")

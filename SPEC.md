@@ -4,12 +4,15 @@
 > **Rule:** If code and this document conflict, this document wins. Do not add features, dependencies, or layers not described here. Keep code simple and beginner-readable.
 
 ## 1. Purpose
+
 A small Go service for learning. It provides:
+
 - Basic CRUD for webhook subscriptions.
 - Three webhook functions: dispatch, receive (signature verification), delivery logs.
 - Clean architecture with strict layer separation.
 
 ## 2. Constraints
+
 - Go 1.22+ (uses `net/http` pattern routing, e.g. `mux.HandleFunc("GET /webhooks/{id}", ...)` and `r.PathValue("id")`).
 - Module name: `github.com/apiwat-tb/go-webhook`.
 - Only one external dependency allowed: `github.com/google/uuid`.
@@ -89,12 +92,14 @@ type Delivery struct {
 ```
 
 Errors:
+
 ```go
 var (
     ErrNotFound     = errors.New("not found")
     ErrInvalidInput = errors.New("invalid input")
 )
 ```
+
 Wrap validation messages: `fmt.Errorf("%w: url is required", domain.ErrInvalidInput)`.
 
 ## 6. Interfaces (`internal/usecase/repository.go`)
@@ -123,28 +128,31 @@ type Sender interface {
 ## 7. Use Cases
 
 ### 7.1 WebhookUsecase (CRUD)
+
 Constructor: `NewWebhookUsecase(repo WebhookRepository) *WebhookUsecase`
 
-| Method | Behavior |
-|---|---|
-| `Create(url, event, secret string) (*Webhook, error)` | Validate; generate uuid ID; if secret empty generate 16 random bytes hex; `Active=true`; `CreatedAt=time.Now()`; save |
-| `Get(id)` | Delegate to repo |
-| `List()` | Delegate to repo |
-| `Update(id string, url, event *string, active *bool) (*Webhook, error)` | Load existing; apply non-nil fields; re-validate; save |
-| `Delete(id)` | Delegate to repo |
+| Method                                                                  | Behavior                                                                                                              |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `Create(url, event, secret string) (*Webhook, error)`                   | Validate; generate uuid ID; if secret empty generate 16 random bytes hex; `Active=true`; `CreatedAt=time.Now()`; save |
+| `Get(id)`                                                               | Delegate to repo                                                                                                      |
+| `List()`                                                                | Delegate to repo                                                                                                      |
+| `Update(id string, url, event *string, active *bool) (*Webhook, error)` | Load existing; apply non-nil fields; re-validate; save                                                                |
+| `Delete(id)`                                                            | Delegate to repo                                                                                                      |
 
 Validation:
+
 - `url`: required, must parse with `url.ParseRequestURI`, scheme `http` or `https`, non-empty host.
 - `event`: required, non-empty after `strings.TrimSpace`.
 - Violations return `domain.ErrInvalidInput` (wrapped).
 
 ### 7.2 DispatchUsecase
+
 Constructor: `NewDispatchUsecase(webhooks WebhookRepository, deliveries DeliveryRepository, sender Sender) *DispatchUsecase`
 
-| Method | Behavior |
-|---|---|
+| Method                                                                 | Behavior                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Dispatch(event string, data json.RawMessage) (DispatchResult, error)` | Validate `event` non-empty and `data` valid JSON. Build payload `{"event":..., "data":..., "timestamp":RFC3339}`. For each active webhook from `ListByEvent`: call `Sender.Send`, then save a `Delivery` (Success = 2xx, StatusCode, Error text if err). A failed delivery MUST NOT stop the loop or fail the whole call. |
-| `ListDeliveries(webhookID string) ([]*Delivery, error)` | Return `ErrNotFound` if webhook does not exist; else repo list |
+| `ListDeliveries(webhookID string) ([]*Delivery, error)`                | Return `ErrNotFound` if webhook does not exist; else repo list                                                                                                                                                                                                                                                            |
 
 ```go
 type DispatchResult struct {
@@ -153,17 +161,20 @@ type DispatchResult struct {
     Failed    int `json:"failed"`
 }
 ```
+
 Send sequentially (no goroutines) to keep it simple.
 
 ## 8. Infrastructure
 
 ### 8.1 Memory repositories
+
 - `map[string]*domain.Webhook` guarded by `sync.RWMutex`.
 - `List()` returns items sorted by `CreatedAt` ascending.
 - Return copies or be careful not to leak mutable shared pointers.
 - Constructors: `NewWebhookRepo()`, `NewDeliveryRepo()`.
 
 ### 8.2 HTTP sender (`infra/sender`)
+
 - `http.Client{Timeout: 5 * time.Second}`.
 - Request: `POST`, body = payload, headers:
   - `Content-Type: application/json`
@@ -172,10 +183,12 @@ Send sequentially (no goroutines) to keep it simple.
 - Constructor: `NewHTTPSender() *HTTPSender`.
 
 ### 8.3 Signature helpers (`infra/sender/signature.go`)
+
 ```go
 func Sign(secret string, payload []byte) string          // returns "sha256=<hex>"
 func Verify(secret string, payload []byte, sig string) bool // use hmac.Equal (constant time)
 ```
+
 `/incoming` handler in `delivery/http` needs `Verify`. To respect dependency rules, the router receives a `verify func(secret string, payload []byte, sig string) bool` injected from `main.go` (do not import `infra` in delivery).
 
 ## 9. HTTP API
@@ -184,13 +197,13 @@ Base: `http://localhost:8080`. All bodies/responses are JSON (`Content-Type: app
 
 ### 9.1 CRUD
 
-| Method | Path | Request body | Success | Errors |
-|---|---|---|---|---|
-| POST | `/webhooks` | `{"url","event","secret?"}` | 201 + Webhook | 400 |
-| GET | `/webhooks` | – | 200 + `[]Webhook` (empty array, never null) | – |
-| GET | `/webhooks/{id}` | – | 200 + Webhook | 404 |
-| PUT | `/webhooks/{id}` | `{"url?","event?","active?"}` | 200 + Webhook | 400, 404 |
-| DELETE | `/webhooks/{id}` | – | 204 no body | 404 |
+| Method | Path             | Request body                  | Success                                     | Errors   |
+| ------ | ---------------- | ----------------------------- | ------------------------------------------- | -------- |
+| POST   | `/webhooks`      | `{"url","event","secret?"}`   | 201 + Webhook                               | 400      |
+| GET    | `/webhooks`      | –                             | 200 + `[]Webhook` (empty array, never null) | –        |
+| GET    | `/webhooks/{id}` | –                             | 200 + Webhook                               | 404      |
+| PUT    | `/webhooks/{id}` | `{"url?","event?","active?"}` | 200 + Webhook                               | 400, 404 |
+| DELETE | `/webhooks/{id}` | –                             | 204 no body                                 | 404      |
 
 ### 9.2 Webhook functions
 
@@ -200,6 +213,7 @@ Response 200: `{"matched":2,"succeeded":1,"failed":1}`
 Errors: 400 for missing event or invalid data.
 
 **2. Receive** – `POST /incoming`
+
 - Reads raw body and header `X-Signature`.
 - Verifies the signature against a single secret from env var `INCOMING_SECRET` (default `"demo-secret"`). This keeps the demo simple.
 - Valid signature: 200 `{"status":"ok"}`. Log the body.
@@ -210,34 +224,40 @@ Errors: 400 for missing event or invalid data.
 Response 200: `[]Delivery` (newest first, empty array if none). 404 if webhook missing.
 
 ### 9.3 Error format and mapping
+
 ```json
-{"error": "human readable message"}
+{ "error": "human readable message" }
 ```
-| Error | Status |
-|---|---|
-| `domain.ErrInvalidInput` | 400 |
-| `domain.ErrNotFound` | 404 |
-| malformed JSON body | 400 |
-| anything else | 500 (generic message, no internals) |
+
+| Error                    | Status                              |
+| ------------------------ | ----------------------------------- |
+| `domain.ErrInvalidInput` | 400                                 |
+| `domain.ErrNotFound`     | 404                                 |
+| malformed JSON body      | 400                                 |
+| anything else            | 500 (generic message, no internals) |
 
 Use `errors.Is` for mapping. Centralize in `response.go`: `writeJSON(w, status, v)` and `writeError(w, err)`.
 
 ## 10. Configuration (`cmd/api/main.go`)
-| Env var | Default | Meaning |
-|---|---|---|
-| `PORT` | `8080` | Listen port |
+
+| Env var           | Default       | Meaning                    |
+| ----------------- | ------------- | -------------------------- |
+| `PORT`            | `8080`        | Listen port                |
 | `INCOMING_SECRET` | `demo-secret` | Secret used by `/incoming` |
 
 `main.go` creates repos, sender, usecases, router, then `http.ListenAndServe`. Log startup address with `log.Printf`.
 
 ## 11. Testing Requirements
+
 Use standard `testing` only.
+
 - `usecase`: CRUD validation and not-found, using in-test fake repos. Dispatch with a fake `Sender` (one success, one failing) asserting `DispatchResult` and saved deliveries.
 - `infra/sender`: `Sign`/`Verify` round trip; tampered payload fails.
 - `delivery/http`: handler tests with `httptest` for POST/GET `/webhooks` and `/incoming` (valid + invalid signature).
 - Run: `go test ./...` must pass; `go vet ./...` must be clean.
 
 ## 12. Implementation Order
+
 1. `go mod init`, create directories.
 2. `domain`.
 3. `usecase/repository.go` + `webhook_usecase.go`.
@@ -249,21 +269,25 @@ Use standard `testing` only.
 9. Tests.
 10. `README.md` with the curl examples below.
 
-## 12.1 Curl Examples (include in README)
-```bash
+## 12.1 Request Examples (include in README)
+
+Windows PowerShell (`curl.exe` mangles inline JSON quotes there):
+
+```powershell
 # Create
-curl -X POST localhost:8080/webhooks -d '{"url":"http://localhost:8080/incoming","event":"order.paid","secret":"demo-secret"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/webhooks -ContentType 'application/json' -Body '{"url":"http://localhost:8080/incoming","event":"order.paid","secret":"demo-secret"}'
 # List
-curl localhost:8080/webhooks
+Invoke-RestMethod http://localhost:8080/webhooks
 # Trigger event
-curl -X POST localhost:8080/events -d '{"event":"order.paid","data":{"order_id":1}}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/events -ContentType 'application/json' -Body '{"event":"order.paid","data":{"order_id":1}}'
 # Delivery logs
-curl localhost:8080/webhooks/<id>/deliveries
+Invoke-RestMethod http://localhost:8080/webhooks/<id>/deliveries
 # Delete
-curl -X DELETE localhost:8080/webhooks/<id>
+Invoke-RestMethod -Method Delete -Uri http://localhost:8080/webhooks/<id>
 ```
 
 ## 13. Acceptance Criteria
+
 - [ ] All endpoints in section 9 behave exactly as specified.
 - [ ] Dependency rules in section 4 hold (verify with imports).
 - [ ] The local loop works: create webhook to `/incoming`, trigger event, see a successful delivery log.
@@ -272,4 +296,5 @@ curl -X DELETE localhost:8080/webhooks/<id>
 - [ ] No dependencies beyond `github.com/google/uuid`.
 
 ## 14. Non-Goals / Future Ideas
+
 Retries with backoff, async workers, SQLite/Postgres repository, auth, pagination, per-webhook secret verification on receive.
